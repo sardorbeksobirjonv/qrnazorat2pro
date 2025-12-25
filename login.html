@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<title>QR O‘quvchi & Xodim Nazorat Tizimi</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode"></script>
+<style>
+body{margin:0;font-family:sans-serif;background:#f1f5f9;}
+aside{position:fixed;top:0;left:0;width:250px;height:100vh;background:#1e40af;color:white;display:flex;flex-direction:column;padding-top:20px;z-index:50;transition:all .3s;}
+aside h2{text-align:center;font-size:1.5rem;font-weight:bold;margin-bottom:20px;}
+aside button{margin:10px;padding:10px;border-radius:8px;text-align:left;background:#2563eb;font-weight:bold;transition:0.2s;}
+aside button:hover{background:#3b82f6;transform:scale(1.05);}
+.main-content{margin-left:250px;padding:20px;transition:margin .3s;}
+.table-wrapper{overflow-x:auto;max-width:100%;border:1px solid #cbd5e1;border-radius:10px;background:white;}
+table{width:100%;border-collapse:collapse;min-width:700px;}
+table th,table td{border-bottom:1px solid #e2e8f0;padding:10px;text-align:center;white-space:nowrap;}
+table th{background:#e2e8f0;font-weight:bold;}
+table tr:hover{background:#dbeafe;}
+.status-present{background-color:#d1fae5;color:#065f46;font-weight:bold;border-radius:4px;padding:2px 6px;}
+.status-absent{background-color:#fee2e2;color:#991b1b;font-weight:bold;border-radius:4px;padding:2px 6px;}
+.btn{transition:.2s;cursor:pointer;}
+.btn:hover{transform:scale(1.05);}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.3);display:flex;justify-content:center;align-items:center;z-index:100;}
+.modal{background:white;padding:20px;border-radius:10px;min-width:300px;position:relative;}
+@media(max-width:768px){
+  aside{position:relative;width:100%;height:auto;flex-direction:row;flex-wrap:wrap;justify-content:center;}
+  .main-content{margin-left:0;}
+  aside button{flex:1 1 45%;margin:5px;}
+  table{font-size:12px;min-width:600px;}
+}
+</style>
+</head>
+<body>
+
+<!-- ASIDE MENU -->
+<aside>
+  <h2>Menu</h2>
+  <button onclick="openAdd('student')">O‘quvchi yaratish</button>
+  <button onclick="openAdd('staff')">Xodim yaratish</button>
+  <button onclick="openScan()">QR skaner</button>
+  <button onclick="openLogin()">Admin panel</button>
+</aside>
+
+<!-- MAIN CONTENT -->
+<div class="main-content">
+  <h1 class="text-2xl font-bold mb-4">QR O‘quvchi & Xodim Nazorat Tizimi</h1>
+  <!-- <p class="mb-4 text-gray-600">Menyudan kerakli funksiyani tanlang.</p> -->
+
+  <!-- ADMIN PANEL -->
+  <div id="admin" class="hidden">
+    <div class="mb-4 flex gap-2 flex-wrap">
+      <button class="btn bg-blue-600 text-white px-4 py-2 rounded" onclick="showTable('students')">O‘quvchilar</button>
+      <button class="btn bg-green-600 text-white px-4 py-2 rounded" onclick="showTable('staffs')">Xodimlar</button>
+      <input id="searchInput" oninput="renderAdmin()" class="border p-2 rounded flex-1" placeholder="ID, ism yoki telefon bo‘yicha qidirish...">
+    </div>
+
+    <div id="studentWrapper" class="table-wrapper mb-6">
+      <h4 class="font-bold mb-2">O‘quvchilar</h4>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th><th>Ism</th><th>Telefon</th><th>Kurs</th><th>Holat</th><th>Kirish</th><th>Chiqish</th><th>Kun</th><th>Ball</th><th>O'chirish</th>
+          </tr>
+        </thead>
+        <tbody id="studentTable"></tbody>
+      </table>
+    </div>
+
+    <div id="staffWrapper" class="hidden table-wrapper mb-6">
+      <h4 class="font-bold mb-2">Xodimlar</h4>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th><th>Ism</th><th>Telefon</th><th>Holat</th><th>Kirish</th><th>Chiqish</th><th>Kun</th><th>O‘chirish</th>
+          </tr>
+        </thead>
+        <tbody id="staffTable"></tbody>
+      </table>
+    </div>
+
+    <button class="underline text-blue-600 mt-3" onclick="closeAdmin()">⬅ Asosiy oynaga</button>
+  </div>
+</div>
+
+<!-- MODAL: ADD PERSON -->
+<div id="add" class="hidden modal-bg">
+  <div class="modal text-center">
+    <h3 id="addTitle" class="font-bold mb-2">O‘quvchi yaratish</h3>
+    <input id="nameInput" class="border p-2 w-full rounded mb-2" placeholder="Ism">
+    <input id="phoneInput" class="border p-2 w-full rounded mb-2" placeholder="Telefon raqam">
+    <div id="courseDiv" class="space-y-2 mb-2">
+      <select id="courseInput" class="border p-2 w-full rounded"></select>
+    </div>
+    <button class="btn bg-green-600 text-white w-full py-2 rounded" onclick="generateQR()">QR yaratish</button>
+    <div id="qrBox" class="my-3"></div>
+    <button id="saveBtn" class="hidden btn bg-blue-600 text-white w-full py-2 rounded mb-2" onclick="savePerson()">💾 Saqlash</button>
+    <button id="downloadBtn" class="hidden btn bg-purple-600 text-white w-full py-2 rounded mb-2" onclick="downloadQR()">⬇ QR yuklab olish</button>
+    <button class="text-red-500 underline mt-2" onclick="closeAdd()">Yopish</button>
+  </div>
+</div>
+
+<!-- MODAL: SCAN QR -->
+<div id="scan" class="hidden modal-bg">
+  <div class="modal text-center">
+    <h3 class="font-bold mb-2">QR skaner</h3>
+    <div id="reader" style="width:300px;height:300px;margin:auto;"></div>
+    <p id="scanOk" class="hidden text-green-600 font-bold mt-2">✅ Skanerlandi</p>
+    <p id="scanErr" class="hidden text-red-600 font-bold mt-2">Noto‘g‘ri QR kod yoki tez-tez tekshiruv</p>
+    <button class="text-red-500 underline mt-3" onclick="closeScan()">Skanerni yopish</button>
+  </div>
+</div>
+
+<!-- MODAL: LOGIN -->
+<div id="login" class="hidden modal-bg">
+  <div class="modal text-center">
+    <h3 class="font-bold mb-2">Admin kirish</h3>
+    <input id="adminPass" type="password" class="border p-2 w-full rounded mb-2" placeholder="Parol">
+    <button class="btn bg-blue-600 text-white w-full py-2 rounded" onclick="login()">Kirish</button>
+    <p id="loginErr" class="hidden text-red-600 mt-2">Parol noto‘g‘ri</p>
+    <button class="text-red-500 underline mt-2" onclick="closeLogin()">Yopish</button>
+  </div>
+</div>
+
+<audio id="beepSound" src="https://www.soundjay.com/buttons/sounds/button-16.mp3" preload="auto"></audio>
+
+<script>
+// Kurslar
+const courses=["Matematika","Adabiyot 2","Kimyo","Ingliz tili","Biologiya","Geografiya","Tarix","Adabiyot","Informatika","Rus tili","Fransuz tili","Nemis tili","Jismoniy tarbiya","San’at","Musiqa","Falsafa","Psixologiya","Iqtisodiyot","Huquqshunoslik","Sotsiologiya"];
+function renderCourses(){const sel=document.getElementById("courseInput"); sel.innerHTML=""; courses.forEach(c=>{const opt=document.createElement("option"); opt.value=c; opt.innerText=c; sel.appendChild(opt);});}
+renderCourses();
+
+// LocalStorage
+let students=JSON.parse(localStorage.getItem("students")||"[]");
+let staff=JSON.parse(localStorage.getItem("staff")||"[]");
+let tempPerson=null, personType="student", scanner=null;
+const ADMIN_PASSWORD="admin123";
+const TELEGRAM_BOT_TOKEN="8549034743:AAHfT1zb-2jHXHdGb7R3KQNZtIHqLrFUq1o";
+const TELEGRAM_STUDENT_CHANNEL="-1003391289186";
+const TELEGRAM_STAFF_CHANNEL="-1003391289186";
+
+function save(){localStorage.setItem("students",JSON.stringify(students)); localStorage.setItem("staff",JSON.stringify(staff));}
+function hideAll(){["add","scan","login","admin"].forEach(i=>document.getElementById(i)?.classList.add("hidden"));}
+function goHome(){hideAll(); stopScanner();}
+
+// ADD
+function openAdd(type){personType=type; document.getElementById("addTitle").innerText=type==="student"?"O‘quvchi yaratish":"Xodim yaratish"; document.getElementById("add").classList.remove("hidden"); document.getElementById("qrBox").innerHTML=""; document.getElementById("saveBtn").classList.add("hidden"); document.getElementById("downloadBtn").classList.add("hidden"); document.getElementById("courseDiv").style.display=type==="student"?"block":"none";}
+function closeAdd(){document.getElementById("add").classList.add("hidden");}
+
+// QR
+function generateQR(){const name=document.getElementById("nameInput").value.trim();const phone=document.getElementById("phoneInput").value.trim(); if(!name||!phone){alert("Ism va telefon raqam kiriting"); return;} const uniqueQR=personType.toUpperCase()+"_"+Date.now()+"_"+Math.floor(Math.random()*1000); tempPerson={id:(personType==="student"?students.length:staff.length)+1,name,phone,course:personType==="student"?document.getElementById("courseInput").value:"",qr:uniqueQR,points:0,status:"Yo‘q",inTime:"-",outTime:"-",day:"-",lastScan:0}; document.getElementById("qrBox").innerHTML=""; new QRCode(document.getElementById("qrBox"),{text:tempPerson.qr,width:160,height:160}); document.getElementById("saveBtn").classList.remove("hidden"); document.getElementById("downloadBtn").classList.remove("hidden");}
+function savePerson(){if(!tempPerson)return; personType==="student"?students.push(tempPerson):staff.push(tempPerson); save(); renderAdmin(); alert("✅ Saqlandi"); tempPerson=null; document.getElementById("nameInput").value=""; document.getElementById("phoneInput").value="";}
+function downloadQR(){const img=document.querySelector("#qrBox img"); if(!img) return; const a=document.createElement("a"); a.href=img.src; a.download="qr.png"; a.click();}
+
+// SCAN
+function openScan(){document.getElementById("scan").classList.remove("hidden"); if(scanner) return; scanner=new Html5Qrcode("reader"); scanner.start({facingMode:"environment"},{fps:10,qrbox:250},handleScan,()=>{}).catch(()=>alert("📷 Kamera ishlamayapti"));}
+function handleScan(decodedText){document.getElementById("beepSound").play(); let person=students.find(x=>x.qr===decodedText)||staff.find(x=>x.qr===decodedText); if(!person){showScanError(); return;} const type=students.find(x=>x.qr===decodedText)?"student":"staff"; const now=new Date(); if(now-person.lastScan<10*60*1000){showScanError(); return;} person.lastScan=now.getTime(); const today=now.toISOString().split("T")[0]; if(person.day!==today){person.inTime="-";person.outTime="-";person.status="Yo‘q";person.day=today;} if(person.inTime=="-"){person.inTime=now.toLocaleTimeString(); person.status=type==="student"?"Darsga kirish":"Ishga kirish"; sendToTelegram(person,"KIRDI",type);} else if(person.outTime=="-"){person.outTime=now.toLocaleTimeString(); person.status=type==="student"?"Darsdan chiqdi":"Ishdan chiqdi"; if(type==="student")person.points+=2; sendToTelegram(person,"CHIQDI",type);} save(); renderAdmin(); document.getElementById("scanOk").classList.remove("hidden"); setTimeout(()=>document.getElementById("scanOk").classList.add("hidden"),1500);}
+function closeScan(){document.getElementById("scan").classList.add("hidden"); stopScanner();}
+function stopScanner(){if(scanner){scanner.stop().then(()=>{scanner.clear();scanner=null;}).catch(()=>scanner=null);}}
+function showScanError(){document.getElementById("scanErr").classList.remove("hidden"); setTimeout(()=>document.getElementById("scanErr").classList.add("hidden"),2000);}
+
+// ADMIN
+function openLogin(){document.getElementById("login").classList.remove("hidden"); document.getElementById("loginErr").classList.add("hidden");}
+function closeLogin(){document.getElementById("login").classList.add("hidden");}
+function login(){const pass=document.getElementById("adminPass").value; if(pass===ADMIN_PASSWORD){document.getElementById("login").classList.add("hidden"); document.getElementById("admin").classList.remove("hidden"); renderAdmin();}else{document.getElementById("loginErr").classList.remove("hidden");}}
+function closeAdmin(){document.getElementById("admin").classList.add("hidden"); goHome();}
+function showTable(type){document.getElementById("studentWrapper").classList.toggle("hidden",type!=="students"); document.getElementById("staffWrapper").classList.toggle("hidden",type!=="staffs");}
+function renderAdmin(){
+  const search=document.getElementById("searchInput")?.value.toLowerCase()||"";
+  const studentTable=document.getElementById("studentTable"); studentTable.innerHTML="";
+  students.filter(s=> s.name.toLowerCase().includes(search)||String(s.id).includes(search)||s.phone.includes(search))
+    .forEach((s,i)=>{
+      studentTable.innerHTML+=`<tr>
+        <td>${s.id}</td>
+        <td>${s.name}</td>
+        <td>${s.phone}</td>
+        <td>${s.course}</td>
+        <td class="${s.status.includes('kirish')?'status-present':'status-absent'}">${s.status}</td>
+        <td>${s.inTime}</td>
+        <td>${s.outTime}</td>
+        <td>${s.day}</td>
+        <td>${s.points}</td>
+        <td><button onclick="delPerson('student',${i})">🗑</button></td>
+      </tr>`;
+    });
+  const staffTable=document.getElementById("staffTable"); staffTable.innerHTML="";
+  staff.filter(s=> s.name.toLowerCase().includes(search)||String(s.id).includes(search)||s.phone.includes(search))
+    .forEach((s,i)=>{
+      staffTable.innerHTML+=`<tr>
+        <td>${s.id}</td>
+        <td>${s.name}</td>
+        <td>${s.phone}</td>
+        <td class="${s.status.includes('kirish')?'status-present':'status-absent'}">${s.status}</td>
+        <td>${s.inTime}</td>
+        <td>${s.outTime}</td>
+        <td>${s.day}</td>
+        <td><button onclick="delPerson('staff',${i})">🗑</button></td>
+      </tr>`;
+    });
+}
+function delPerson(type,index){if(confirm("O‘chirishni tasdiqlaysizmi?")){type==="student"?students.splice(index,1):staff.splice(index,1); save(); renderAdmin();}}
+function sendToTelegram(person,status,type){const chatId=type==="student"?TELEGRAM_STUDENT_CHANNEL:TELEGRAM_STAFF_CHANNEL; const text=`Ism: ${person.name}\nTel: ${person.phone}\nKurs: ${person.course||"-"}\nStatus: ${status}\nKirish: ${person.inTime}\nChiqish: ${person.outTime}\nBall: ${person.points}`; fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(text)}`).catch(e=>console.log(e));}
+</script>
+</body>
+</html>

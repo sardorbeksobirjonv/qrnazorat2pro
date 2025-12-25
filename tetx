@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="utf-8" />
+<title>QR O‘quvchi & Xodim Nazorat Tizimi</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode"></script>
+<style>
+  body{margin:0;font-family:sans-serif;background:#f1f5f9;}
+  aside{position:fixed;top:0;left:0;width:250px;height:100vh;background:#1e40af;color:white;display:flex;flex-direction:column;padding-top:20px;z-index:50;transition:all .3s;}
+  aside h2{text-align:center;font-size:1.5rem;font-weight:bold;margin-bottom:20px;}
+  aside button{margin:10px;padding:10px;border-radius:8px;text-align:left;background:#2563eb;font-weight:bold;transition:0.2s;border:0;color:white;}
+  aside button:hover{background:#3b82f6;transform:scale(1.03);}
+  .main-content{margin-left:250px;padding:20px;transition:margin .3s;}
+  .table-wrapper{overflow-x:auto;max-width:100%;border:1px solid #cbd5e1;border-radius:10px;background:white;}
+  table{width:100%;border-collapse:collapse;min-width:700px;}
+  table th,table td{border-bottom:1px solid #e2e8f0;padding:10px;text-align:center;white-space:nowrap;}
+  table th{background:#e2e8f0;font-weight:bold;}
+  .status-present{background-color:#d1fae5;color:#065f46;font-weight:bold;border-radius:4px;padding:2px 6px;}
+  .status-absent{background-color:#fee2e2;color:#991b1b;font-weight:bold;border-radius:4px;padding:2px 6px;}
+  .btn{transition:.2s;cursor:pointer;}
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.35);display:flex;justify-content:center;align-items:center;z-index:100;}
+  .modal{background:white;padding:18px;border-radius:10px;min-width:320px;max-width:95%;position:relative;}
+  @media(max-width:768px){
+    aside{position:relative;width:100%;height:auto;flex-direction:row;flex-wrap:wrap;justify-content:center;}
+    .main-content{margin-left:0;}
+    aside button{flex:1 1 45%;margin:5px;}
+    table{font-size:12px;min-width:600px;}
+  }
+  #asideButtons { display:flex; flex-direction:column; }
+  #asideButtons.hidden { display:none; }
+  .hidden{display:none!important;}
+</style>
+</head>
+<body>
+
+<!-- GLOBAL LOGIN -->
+<div id="globalLogin" class="modal-bg">
+  <div class="modal" role="dialog" aria-modal="true">
+    <h3 style="margin:0 0 12px;font-size:20px;">Tizimga kirish</h3>
+    <input id="globalUser" placeholder="Login" style="width:100%;padding:10px;margin-bottom:8px;border:1px solid #ddd;border-radius:8px">
+    <input id="globalPass" type="password" placeholder="Parol" style="width:100%;padding:10px;margin-bottom:12px;border:1px solid #ddd;border-radius:8px">
+    <button id="globalLoginBtn" style="width:100%;padding:10px;background:#2563eb;color:#fff;border-radius:8px;border:0">Kirish</button>
+    <p id="globalErr" style="color:#b91c1c;margin-top:10px;display:none">Login yoki parol noto‘g‘ri</p>
+  </div>
+</div>
+
+<aside>
+  <h2>Menu</h2>
+  <button id="menuToggle" class="hidden" aria-hidden="true">☰ Menu</button>
+  <div id="asideButtons">
+    <button onclick="openAdd('student')">O‘quvchi yaratish</button>
+    <button onclick="openAdd('staff')">Xodim yaratish</button>
+    <button onclick="openScan()">QR skaner</button>
+    <button onclick="openLogin()">Admin panel</button>
+  </div>
+</aside>
+
+<div class="main-content">
+  <h1 style="margin-top:0">QR O‘quvchi & Xodim Nazorat Tizimi</h1>
+
+  <div id="admin" class="hidden">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <button onclick="showTable('students')" class="btn" style="background:#2563eb;color:white;padding:8px 12px;border-radius:8px;border:0">O‘quvchilar</button>
+      <button onclick="showTable('staffs')" class="btn" style="background:#16a34a;color:white;padding:8px 12px;border-radius:8px;border:0">Xodimlar</button>
+      <input id="searchInput" oninput="renderAdmin()" placeholder="ID, ism yoki telefon..." style="flex:1;padding:8px;border-radius:8px;border:1px solid #ddd">
+    </div>
+
+    <div id="studentWrapper" class="table-wrapper" style="padding:12px;margin-bottom:14px">
+      <h4 style="margin:0 0 8px">O‘quvchilar</h4>
+      <table><thead><tr><th>ID</th><th>Ism</th><th>Telefon</th><th>Kurs</th><th>O'qituvchi</th><th>To'lov</th><th>Holat</th><th>Kirish</th><th>Chiqish</th><th>Kun</th><th>Ball</th><th>Amallar</th></tr></thead>
+      <tbody id="studentTable"></tbody></table>
+    </div>
+
+    <div id="staffWrapper" class="table-wrapper hidden" style="padding:12px;margin-bottom:14px">
+      <h4 style="margin:0 0 8px">Xodimlar</h4>
+      <table><thead><tr><th>ID</th><th>Ism</th><th>Telefon</th><th>Rol</th><th>Holat</th><th>Kirish</th><th>Chiqish</th><th>Kun</th><th>O‘chirish</th></tr></thead>
+      <tbody id="staffTable"></tbody></table>
+    </div>
+
+    <button onclick="closeAdmin()" style="background:none;border:0;color:#2563eb;text-decoration:underline">⬅ Asosiy oynaga</button>
+  </div>
+</div>
+
+<!-- ADD PERSON -->
+<div id="add" class="modal-bg hidden">
+  <div class="modal">
+    <h3 id="addTitle">O‘quvchi yaratish</h3>
+    <input id="nameInput" placeholder="Ism" style="width:100%;padding:8px;margin:6px 0;border:1px solid #ddd;border-radius:8px">
+    <input id="phoneInput" placeholder="Telefon raqam" style="width:100%;padding:8px;margin:6px 0;border:1px solid #ddd;border-radius:8px">
+    <div id="courseDiv" style="margin:6px 0">
+      <select id="courseInput" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px"></select>
+    </div>
+    <div id="teacherDiv" class="hidden" style="margin:6px 0">
+      <select id="teacherInput" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px"><option value="">-- O'qituvchi tanlang --</option></select>
+    </div>
+    <div style="margin-top:8px">
+      <button onclick="generateQR()" style="width:100%;padding:8px;background:#16a34a;color:white;border:0;border-radius:8px">QR yaratish</button>
+    </div>
+    <div id="qrBox" style="text-align:center;margin-top:12px"></div>
+    <div style="margin-top:10px">
+      <button id="saveBtn" class="hidden" onclick="savePerson()" style="width:100%;padding:8px;background:#2563eb;color:white;border:0;border-radius:8px;margin-bottom:6px">💾 Saqlash</button>
+      <button id="downloadBtn" class="hidden" onclick="downloadQR()" style="width:100%;padding:8px;background:#7c3aed;color:white;border:0;border-radius:8px">⬇ QR yuklab olish</button>
+    </div>
+    <div style="margin-top:8px;text-align:center">
+      <button onclick="closeAdd()" style="background:none;border:0;color:#b91c1c;text-decoration:underline">Yopish</button>
+    </div>
+  </div>
+</div>
+
+<!-- SCAN -->
+<div id="scan" class="modal-bg hidden">
+  <div class="modal">
+    <h3>QR skaner</h3>
+    <div id="reader" style="width:300px;height:300px;margin:12px auto"></div>
+    <p id="scanOk" class="hidden" style="color:#059669">✅ Skanerlandi</p>
+    <p id="scanErr" class="hidden" style="color:#b91c1c">Noto‘g‘ri QR kod yoki tez-tez tekshiruv</p>
+    <div style="margin-top:10px;text-align:center"><button onclick="closeScan()" style="background:none;border:0;color:#b91c1c;text-decoration:underline">Skanerni yopish</button></div>
+  </div>
+</div>
+
+<!-- ADMIN LOGIN -->
+<div id="login" class="modal-bg hidden">
+  <div class="modal">
+    <h3>Admin kirish</h3>
+    <input id="adminPass" type="password" placeholder="Parol" style="width:100%;padding:8px;margin:8px 0;border:1px solid #ddd;border-radius:8px">
+    <button onclick="login()" style="width:100%;padding:8px;background:#2563eb;color:white;border:0;border-radius:8px">Kirish</button>
+    <p id="loginErr" style="color:#b91c1c;margin-top:8px;display:none">Parol noto‘g‘ri</p>
+    <div style="margin-top:8px;text-align:center"><button onclick="closeLogin()" style="background:none;border:0;color:#b91c1c;text-decoration:underline">Yopish</button></div>
+  </div>
+</div>
+
+<!-- PAYMENTS -->
+<div id="paymentsModal" class="modal-bg hidden">
+  <div class="modal">
+    <h3 id="paymentsTitle">To'lovlar</h3>
+    <div id="paymentsList" style="max-height:220px;overflow:auto;margin-bottom:10px"></div>
+    <div style="display:flex;gap:8px">
+      <input id="addPaymentAmount" placeholder="To'lov miqdori (so'm)" style="flex:1;padding:8px;border:1px solid #ddd;border-radius:8px">
+      <button onclick="addPayment()" style="padding:8px;background:#16a34a;color:white;border:0;border-radius:8px">Qo'shish</button>
+    </div>
+    <div style="margin-top:10px;text-align:center"><button onclick="closePayments()" style="background:none;border:0;color:#b91c1c;text-decoration:underline">Yopish</button></div>
+  </div>
+</div>
+
+<audio id="beepSound" src="https://www.soundjay.com/buttons/sounds/button-16.mp3" preload="auto"></audio>
+
+<script>
+/* -------------------------
+   Configuration & state
+   ------------------------- */
+const GLOBAL_USER = "admin";
+const GLOBAL_PASS = "12345";
+const ADMIN_PASSWORD = "admin123"; // admin panel password
+const TELEGRAM_BOT_TOKEN = "";     // optional
+const TELEGRAM_STUDENT_CHANNEL = "";
+const TELEGRAM_STAFF_CHANNEL = "";
+
+const courses = ["Matematika","Adabiyot","Kimyo","Ingliz tili","Biologiya","Geografiya","Tarix","Informatika","Rus tili","Fransuz tili","Nemis tili","Jismoniy tarbiya","San’at","Musiqa","Falsafa","Psixologiya","Iqtisodiyot","Huquqshunoslik","Sotsiologiya"];
+
+let students = JSON.parse(localStorage.getItem("students") || "[]");
+let staff = JSON.parse(localStorage.getItem("staff") || "[]");
+let tempPerson = null;
+let personType = "student";
+let scanner = null;
+
+/* -------------------------
+   Helpers
+   ------------------------- */
+function save() {
+  localStorage.setItem("students", JSON.stringify(students));
+  localStorage.setItem("staff", JSON.stringify(staff));
+  renderTeacherOptions();
+}
+
+function nextId(arr){
+  if(!arr || arr.length===0) return 1;
+  return Math.max(...arr.map(x=>x.id||0))+1;
+}
+
+function isLogged(){
+  return sessionStorage.getItem("loggedIn") === "true";
+}
+
+function showElement(id){ document.getElementById(id)?.classList.remove('hidden'); }
+function hideElement(id){ document.getElementById(id)?.classList.add('hidden'); }
+
+/* -------------------------
+   Initial UI setup
+   ------------------------- */
+function renderCourses(){
+  const sel = document.getElementById('courseInput');
+  if(!sel) return;
+  sel.innerHTML = '';
+  courses.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c; opt.innerText = c;
+    sel.appendChild(opt);
+  });
+}
+function renderTeacherOptions(){
+  const sel = document.getElementById('teacherInput');
+  if(!sel) return;
+  sel.innerHTML = '<option value="">-- O\'qituvchi tanlang --</option>';
+  staff.filter(s => s.role === "Teacher").forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = String(t.id);
+    opt.innerText = `${t.name} (${t.phone||''})`;
+    sel.appendChild(opt);
+  });
+}
+
+/* -------------------------
+   GLOBAL LOGIN (overlay)
+   ------------------------- */
+function initGlobalLogin(){
+  const loginOverlay = document.getElementById('globalLogin');
+  const err = document.getElementById('globalErr');
+  if(isLogged()){
+    hideElement('globalLogin');
+  } else {
+    showElement('globalLogin');
+  }
+
+  document.getElementById('globalLoginBtn').addEventListener('click', () => {
+    const u = (document.getElementById('globalUser').value || '').trim();
+    const p = (document.getElementById('globalPass').value || '').trim();
+    if(u === GLOBAL_USER && p === GLOBAL_PASS){
+      sessionStorage.setItem('loggedIn', 'true');
+      hideElement('globalLogin');
+      err.style.display = 'none';
+    } else {
+      err.style.display = 'block';
+    }
+  });
+
+  // allow Enter key to submit
+  document.getElementById('globalPass').addEventListener('keydown', (e) => {
+    if(e.key === 'Enter') document.getElementById('globalLoginBtn').click();
+  });
+}
+
+/* -------------------------
+   Add / generate / save person
+   ------------------------- */
+function openAdd(type){
+  if(!isLogged()) { showElement('globalLogin'); return; }
+  personType = type;
+  document.getElementById('addTitle').innerText = type === 'student' ? "O‘quvchi yaratish" : "Xodim yaratish";
+  document.getElementById('nameInput').value = '';
+  document.getElementById('phoneInput').value = '';
+  document.getElementById('qrBox').innerHTML = '';
+  hideElement('saveBtn'); hideElement('downloadBtn');
+  // show/hide course/teacher for students
+  if(type === 'student'){ showElement('courseDiv'); showElement('teacherDiv'); } else { hideElement('courseDiv'); hideElement('teacherDiv'); }
+  showElement('add');
+  renderTeacherOptions();
+}
+
+function closeAdd(){ hideElement('add'); }
+
+function generateQR(){
+  const name = (document.getElementById('nameInput').value || '').trim();
+  const phone = (document.getElementById('phoneInput').value || '').trim();
+  if(!name || !phone){ alert('Ism va telefon raqam kiriting'); return; }
+  const uniqueQR = `${personType.toUpperCase()}_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+
+  if(personType === 'student'){
+    const teacherIdVal = document.getElementById('teacherInput')?.value || '';
+    const teacherId = teacherIdVal ? Number(teacherIdVal) : null;
+    tempPerson = {
+      id: nextId(students),
+      name, phone,
+      course: document.getElementById('courseInput')?.value || '',
+      teacherId,
+      feeAmount: 0, paidAmount: 0, payments: [], lastPayment: null,
+      qr: uniqueQR, points: 0, status: "Yo‘q", inTime: "-", outTime: "-", day: "-", lastScan: 0
+    };
+  } else {
+    tempPerson = {
+      id: nextId(staff),
+      name, phone,
+      role: 'Staff',
+      qr: uniqueQR, status: "Yo‘q", inTime: "-", outTime: "-", day: "-", lastScan: 0
+    };
+  }
+
+  const box = document.getElementById('qrBox');
+  box.innerHTML = '';
+  try {
+    new QRCode(box, { text: tempPerson.qr, width: 160, height: 160 });
+  } catch (e){
+    box.innerText = tempPerson.qr;
+  }
+  showElement('saveBtn'); showElement('downloadBtn');
+}
+
+function savePerson(){
+  if(!tempPerson) return;
+  if(personType === 'student'){ students.push(tempPerson); } else { staff.push(tempPerson); }
+  save();
+  renderAdmin();
+  alert('✅ Saqlandi');
+  tempPerson = null;
+  document.getElementById('nameInput').value = '';
+  document.getElementById('phoneInput').value = '';
+  closeAdd();
+}
+
+function downloadQR(){
+  const box = document.getElementById('qrBox');
+  const img = box.querySelector('img');
+  const canvas = box.querySelector('canvas');
+  if(img){ const a=document.createElement('a'); a.href=img.src; a.download='qr.png'; a.click(); return; }
+  if(canvas){ const a=document.createElement('a'); a.href=canvas.toDataURL('image/png'); a.download='qr.png'; a.click(); return; }
+  alert('QR mavjud emas');
+}
+
+/* -------------------------
+   Scanner
+   ------------------------- */
+function openScan(){
+  if(!isLogged()){ showElement('globalLogin'); return; }
+  showElement('scan');
+  if(scanner) return;
+  try{
+    scanner = new Html5Qrcode("reader");
+    scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, handleScan, err => {}).catch(()=>{ alert('📷 Kamera ishlamayapti'); });
+  } catch(e){
+    console.error(e); alert('Skaner ishga tushmadi');
+  }
+}
+
+function handleScan(decodedText){
+  document.getElementById('beepSound')?.play();
+  const studentMatch = students.find(x => x.qr === decodedText);
+  const staffMatch = studentMatch ? null : staff.find(x => x.qr === decodedText);
+  const person = studentMatch || staffMatch;
+  if(!person){ showScanError(); return; }
+  const type = studentMatch ? 'student' : 'staff';
+  const now = new Date();
+  if(now.getTime() - (person.lastScan || 0) < 10*60*1000){ showScanError(); return; }
+  person.lastScan = now.getTime();
+  const today = now.toISOString().split('T')[0];
+  if(person.day !== today){ person.inTime = '-'; person.outTime = '-'; person.status = "Yo‘q"; person.day = today; }
+  if(person.inTime === '-'){
+    person.inTime = now.toLocaleTimeString();
+    person.status = type === 'student' ? 'Darsga kirish' : 'Ishga kirish';
+    sendToTelegram(person, 'KIRDI', type);
+  } else if(person.outTime === '-'){
+    person.outTime = now.toLocaleTimeString();
+    person.status = type === 'student' ? 'Darsdan chiqdi' : 'Ishdan chiqdi';
+    if(type === 'student') person.points = (person.points||0) + 2;
+    sendToTelegram(person, 'CHIQDI', type);
+  }
+  save(); renderAdmin();
+  showElement('scanOk');
+  setTimeout(()=>hideElement('scanOk'),1500);
+}
+
+function closeScan(){
+  hideElement('scan');
+  if(scanner){
+    scanner.stop().then(()=>{ scanner.clear(); scanner=null; }).catch(()=>{ scanner=null; });
+  }
+}
+function stopScanner(){ closeScan(); }
+function showScanError(){ showElement('scanErr'); setTimeout(()=>hideElement('scanErr'),2000); }
+
+/* -------------------------
+   Admin panel
+   ------------------------- */
+function openLogin(){
+  if(!isLogged()){ showElement('globalLogin'); return; }
+  showElement('login'); hideElement('loginErr');
+}
+function closeLogin(){ hideElement('login'); }
+function login(){
+  const pass = (document.getElementById('adminPass').value || '').trim();
+  if(pass === ADMIN_PASSWORD){
+    hideElement('login'); showElement('admin'); renderAdmin();
+  } else {
+    showElement('loginErr');
+  }
+}
+function closeAdmin(){ hideElement('admin'); goHome(); }
+function showTable(type){
+  document.getElementById('studentWrapper').classList.toggle('hidden', type !== 'students');
+  document.getElementById('staffWrapper').classList.toggle('hidden', type !== 'staffs');
+}
+
+function renderAdmin(){
+  const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
+  const studentTable = document.getElementById('studentTable'); studentTable.innerHTML = '';
+  students.filter(s => (s.name||'').toLowerCase().includes(search) || String(s.id).includes(search) || (s.phone||'').includes(search))
+    .forEach((s,i) => {
+      const teacher = s.teacherId ? (staff.find(st => st.id === s.teacherId)?.name || '-') : '-';
+      const statusClass = (s.status||'').toLowerCase().includes('kirish') ? 'status-present' : 'status-absent';
+      studentTable.insertAdjacentHTML('beforeend',
+        `<tr>
+          <td>${s.id}</td><td>${s.name}</td><td>${s.phone}</td><td>${s.course||'-'}</td><td>${teacher}</td>
+          <td>${(s.paidAmount||0)}/${(s.feeAmount||0)}</td><td class="${statusClass}">${s.status||'-'}</td>
+          <td>${s.inTime||'-'}</td><td>${s.outTime||'-'}</td><td>${s.day||'-'}</td><td>${s.points||0}</td>
+          <td><button onclick="openPayments(${i})">💳</button> <button onclick="delPerson('student',${i})">🗑</button></td>
+        </tr>`);
+    });
+
+  const staffTable = document.getElementById('staffTable'); staffTable.innerHTML = '';
+  staff.filter(s => (s.name||'').toLowerCase().includes(search) || String(s.id).includes(search) || (s.phone||'').includes(search))
+    .forEach((s,i) => {
+      const statusClass = (s.status||'').toLowerCase().includes('kirish') ? 'status-present' : 'status-absent';
+      staffTable.insertAdjacentHTML('beforeend',
+        `<tr>
+          <td>${s.id}</td><td>${s.name}</td><td>${s.phone}</td><td>${s.role||'-'}</td>
+          <td class="${statusClass}">${s.status||'-'}</td><td>${s.inTime||'-'}</td><td>${s.outTime||'-'}</td><td>${s.day||'-'}</td>
+          <td><button onclick="delPerson('staff',${i})">🗑</button></td>
+        </tr>`);
+    });
+}
+
+function delPerson(type,index){
+  if(!confirm("O‘chirishni tasdiqlaysizmi?")) return;
+  if(type === 'student') students.splice(index,1); else staff.splice(index,1);
+  save(); renderAdmin();
+}
+
+/* -------------------------
+   Payments
+   ------------------------- */
+let currentPaymentsIndex = null;
+function openPayments(studentIndex){
+  if(!students[studentIndex]) return;
+  currentPaymentsIndex = studentIndex;
+  const s = students[studentIndex];
+  document.getElementById('paymentsTitle').innerText = `To'lovlar — ${s.name} (ID:${s.id})`;
+  renderPaymentsList();
+  document.getElementById('addPaymentAmount').value = '';
+  showElement('paymentsModal');
+}
+function closePayments(){ currentPaymentsIndex = null; hideElement('paymentsModal'); }
+function renderPaymentsList(){
+  const el = document.getElementById('paymentsList'); el.innerHTML = '';
+  if(currentPaymentsIndex === null) return;
+  const s = students[currentPaymentsIndex];
+  const rows = s.payments && s.payments.length ? s.payments.slice().reverse() : [];
+  if(rows.length === 0){ el.innerHTML = "<p>To'lovlar mavjud emas</p>"; return; }
+  rows.forEach(p => {
+    const div = document.createElement('div');
+    div.style.borderBottom = "1px solid #e2e8f0";
+    div.style.padding = "8px 0";
+    div.innerText = `${p.date} — ${p.amount} so'm`;
+    el.appendChild(div);
+  });
+}
+function addPayment(){
+  if(currentPaymentsIndex === null) return;
+  const val = (document.getElementById('addPaymentAmount').value || '').trim();
+  const amt = parseInt(val || '0', 10);
+  if(isNaN(amt) || amt <= 0){ alert("Noto'g'ri summa"); return; }
+  const s = students[currentPaymentsIndex];
+  s.paidAmount = (s.paidAmount||0) + amt;
+  s.payments = s.payments || [];
+  s.payments.push({ amount: amt, date: new Date().toISOString().split('T')[0] });
+  s.lastPayment = new Date().toISOString().split('T')[0];
+  save(); renderAdmin(); renderPaymentsList();
+  document.getElementById('addPaymentAmount').value = '';
+}
+
+/* -------------------------
+   Telegram (optional)
+   ------------------------- */
+function sendToTelegram(person,status,type){
+  if(!TELEGRAM_BOT_TOKEN) return;
+  const chatId = type === 'student' ? TELEGRAM_STUDENT_CHANNEL : TELEGRAM_STAFF_CHANNEL;
+  const teacherName = type === 'student' && person.teacherId ? (staff.find(s => s.id === person.teacherId)?.name || '-') : '-';
+  const text = `Ism: ${person.name}\nTel: ${person.phone}\nKurs: ${person.course||"-"}\nO'qituvchi: ${teacherName}\nStatus: ${status}\nKirish: ${person.inTime||"-"}\nChiqish: ${person.outTime||"-"}\nBall: ${person.points||0}`;
+  fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(text)}`).catch(()=>{});
+}
+
+/* -------------------------
+   Init
+   ------------------------- */
+renderCourses();
+renderTeacherOptions();
+initGlobalLogin();
+renderAdmin();
+
+</script>
+</body>
